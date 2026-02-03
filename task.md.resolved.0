@@ -1,0 +1,24 @@
+# Task Checklist: Retail Operational Intelligence & Personalization Suite
+
+## Phase 1: Solution Design & Architecture
+- [ ] Analyze Problem Statement and Requirements
+- [ ] Draft `solution_architecture.md` detailing:
+    - Data Pipeline Stages (Ingestion, Validation, Processing, Serving)
+    - Config-Driven Architecture Strategy
+    - Fuzzy Matching Reconciliation Logic
+    - Tech Stack Selection
+
+## Phase 2: Implementation (Planned)
+- [ ] Data Generation (Synthetic Data for Proof of Concept)
+    - [ ] Products & Stores (Master Data)
+    - [ ] Inventory Snapshots & Restock Events (Transactional Data)
+- [ ] Pipeline Core Implementation
+    - [ ] Config Manager (YAML/JSON loader)
+    - [ ] Ingestion Engine & Validation Layer
+    - [ ] Reconciliation / Fuzzy Matching Module
+- [ ] Processing & Storage
+    - [ ] Effective Stock Computation
+    - [ ] Fact Table Loading (DuckDB/SQLite)
+    - [ ] Quarantine Handling
+- [ ] Visualization / Diagnostics
+    - [ ] Simple Dashboard for Valid vs. Quarantine Stats

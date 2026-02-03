@@ -1,0 +1,5 @@
+{
+  "artifactType": "ARTIFACT_TYPE_IMPLEMENTATION_PLAN",
+  "summary": "Plan for implementing the full operational intelligence pipeline, including synthetic data generation, config-driven ingestion, validation, and reconciliation.",
+  "updatedAt": "2026-02-03T14:06:55.019976400Z"
+}

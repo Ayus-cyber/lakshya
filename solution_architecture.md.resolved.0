@@ -1,0 +1,101 @@
+# Solution Architecture: Unified Product & Inventory Data Harmonization Pipeline
+
+## 1. Executive Summary
+This document outlines the technical approach to build an automated, config-driven data pipeline for the "Retail Operational Intelligence & Personalization Suite". The system will ingest raw inventory reports and restock logs, validate data integrity, reconcile discrepancies using fuzzy logic, and produce a high-quality "Golden Record" of inventory.
+
+## 2. System Architecture
+
+We will implement a **Medallion Architecture** (Bronze -> Silver -> Gold) to ensure data quality and traceability.
+
+### Data Flow Diagram
+```mermaid
+graph TD
+    Sources[Raw CSV Sources<br/>(Snapshots, Restocks)] -->|Ingestion Based on Config| Bronze[Raw Layer<br/>(Standardized Format)]
+    Bronze --> Validation{Validation Engine}
+    
+    Validation -->|Pass| Silver[Clean Tier<br/>(recomputed stock)]
+    Validation -->|Fail| Quarantine[Quarantine Table<br/>(Invalid Records)]
+    
+    Silver --> Transformations[Aggregation & Modeling]
+    Transformations --> Gold[Target Fact Table<br/>(Curated Inventory Model)]
+    
+    Quarantine --> ReconEngine[Reconciliation Engine<br/>(Fuzzy Matching)]
+    ReconEngine -->|Match Found| Silver
+    ReconEngine -->|No Match| ManualReview[Manual Review Queue]
+```
+
+## 3. Detailed Component Design
+
+### A. Config-Driven Ingestion Engine (The "Additional Score" Goal)
+To support *any* new inventory file without code changes, we will abstract file definitions into a **YAML Configuration** system.
+
+**Implementation Strategy:**
+-   **Config Registry**: A `schema_config.yaml` file defining expected file patterns, columns, and data types.
+-   **Dynamic Readers**: A standardized reader factory that reads the config to know how to parse a file (delimiter, header row, date formats).
+
+**Example Config (`schema_config.yaml`):**
+```yaml
+datasets:
+  inventory_snapshot:
+    file_pattern: "inventory_snapshot_*.csv"
+    required_columns:
+      - name: "product_id"
+        type: "string"
+      - name: "store_id"
+        type: "string"
+      - name: "quantity"
+        type: "integer"
+        checks: ["min_0"]
+  restock_events:
+    file_pattern: "restock_events_*.csv"
+    required_columns:
+      - name: "product_id"
+        type: "string"
+      - name: "restock_qty"
+        type: "integer"
+        checks: ["max_1000"] # Logical Max
+```
+
+### B. Validation & Quarantine Logic
+We will implement a validation decorator or pipeline step that checks each record against the rules defined in the problem statement.
+
+**Key Validations:**
+1.  **Negative Stock**: `quantity < 0` $\rightarrow$ Quarantine.
+2.  **Mismatched Product ID**: Check existence in `Products` Master Table. $\rightarrow$ Quarantine (then send to Reconciliation Engine).
+3.  **Duplicate Entries**: Group by `(store_id, product_id, date)` and identify count > 1. $\rightarrow$ Keep latest or Quarantine all.
+4.  **Logical Max**: `restock_qty > Threshold`. $\rightarrow$ Quarantine.
+
+### C. Inventory Reconciliation Engine (Fuzzy Matching)
+For records quarantined due to "Mismatched Product ID", we will run a secondary recovery process.
+
+**Logic:**
+1.  **Trigger**: Input is records where `product_id` does not exist in Master Data.
+2.  **Method**: Use Levenshtein Distance (via libraries like `rapid_fuzz` or `thefuzz`) to compare the `product_name` or `SKU` in the failed record against the Master Product Catalog.
+3.  **Thresholding**:
+    -   **Score > 90**: Auto-map to the correct `product_id` and move to Silver Layer.
+    -   **Score < 90**: Keep in Quarantine for human review.
+
+### D. Transformation Logic (Effective Stock)
+The core business logic to compute the single source of truth.
+
+$$ \text{Effective Stock} = \text{Snapshot Level} + \text{Incoming Restock} - (\text{Damaged} + \text{Expired}) $$
+
+*Note: The problem statement lists "Damaged/Expired" but does not explicitly show a dataset for it. We will assume this is either a column in the snapshot or a separate log. We will plan for it to be a column in the `inventory_snapshot` for simplicity.*
+
+## 4. Technical Stack Recommendation
+
+For a Hackathon/PoC context, speed and clarity are paramount:
+
+-   **Language**: Python 3.10+
+-   **Data Processing**: `Polars` (preferred for speed/strictness) or `Pandas`.
+-   **Database**: `DuckDB` (Serverless SQL OLAP database, perfect for local analytics and "fact tables").
+-   **Fuzzy Matching**: `rapid_fuzz` (Fastest Python library for string matching).
+-   **Orchestration**: A simple Python `main.py` controller or `prefect`/`dagster` if complexity grows (stick to script for simplistic start).
+
+## 5. Development Roadmap
+
+1.  **Data Generation**: Create synthetic `.csv` files for Products, Stores, Inventory, and Restock logs to simulate the environment.
+2.  **Schema Engine**: Build the YAML parser and generic Validator class.
+3.  **Pipeline Construction**: Implement the `Raw -> Quarantine/Silver` split.
+4.  **Reconciliation Module**: Implement the fuzzy matching logic.
+5.  **Reporting**: A script to output final "Effective Stock" levels and "Data Quality Report".

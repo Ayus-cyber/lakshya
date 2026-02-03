@@ -1,0 +1,61 @@
+# Implementation Plan: Data Generation & Pipeline Core
+
+## Goal
+Build the end-to-end "Unified Product & Inventory Data Harmonization Pipeline" with synthetic data generation to simulate real-world scenarios (including dirty data for validation testing).
+
+## Proposed Changes
+
+### 1. Project Structure
+```text
+/pipeline
+  /config
+    schema_config.yaml      # The "Config-Driven" approach
+  /data
+    /raw                    # Generated input files
+    /processed              # Output layers
+    /quarantine             # Bad data
+  /src
+    data_generator.py       # Synthetic data fabrication
+    pipeline_core.py        # Ingestion & Validation logic
+    reconciliation.py       # Fuzzy matching logic
+    main.py                 # Orchestrator
+```
+
+### 2. Component Details
+
+#### [NEW] [data_generator.py](file:///C:/Users/91823/.gemini/antigravity/brain/8f155d49-b9ca-49ba-bcb8-3c7db8ff8b32/src/data_generator.py)
+- **Libs**: `faker`, `pandas`
+- **Outputs**:
+    - `products.csv`: Master catalog (Includes some "canonical" names).
+    - `stores.csv`: Master store list.
+    - `inventory_snapshot_{date}.csv`: Transactional data. **Will intentionally inject**:
+        - Negative quantities.
+        - `product_id`s that don't exist in master (typos for fuzzy match testing).
+        - Duplicates.
+    - `restock_events_{date}.csv`: Restock logs with some huge values (> max logical).
+
+#### [NEW] [schema_config.yaml](file:///C:/Users/91823/.gemini/antigravity/brain/8f155d49-b9ca-49ba-bcb8-3c7db8ff8b32/config/schema_config.yaml)
+- Defines columns, types, and validation rules (e.g., `min_value: 0`).
+
+#### [NEW] [pipeline_core.py](file:///C:/Users/91823/.gemini/antigravity/brain/8f155d49-b9ca-49ba-bcb8-3c7db8ff8b32/src/pipeline_core.py)
+- **Class `ConfigLoader`**: Reads YAML.
+- **Class `Ingestor`**: Reads CSVs using schema.
+- **Class `Validator`**: Applies rules. Splits data into `valid_df` and `quarantine_df`.
+
+#### [NEW] [reconciliation.py](file:///C:/Users/91823/.gemini/antigravity/brain/8f155d49-b9ca-49ba-bcb8-3c7db8ff8b32/src/reconciliation.py)
+- **Func `fuzzy_match`**: Uses `rapid_fuzz` to find closest match for unknown product IDs.
+
+#### [NEW] [main.py](file:///C:/Users/91823/.gemini/antigravity/brain/8f155d49-b9ca-49ba-bcb8-3c7db8ff8b32/src/main.py)
+- Runs: Generate -> Ingest -> Validate -> Reconcile -> Report.
+
+## Verification Plan
+
+### Automated Tests
+1.  **Generation**: Run `data_generator.py` and verify files exist in `/data/raw`.
+2.  **Pipeline**: Run `main.py`.
+    -   Check that `quarantine.csv` contains the known bad records.
+    -   Check that `inventory_fact.csv` has "Effective Stock" calculated correctly.
+    -   Verify that "fuzzy matched" records were recovered from quarantine.
+
+### Manual Verification
+- Review the generated `quarantine.csv` to ensure it caught the specific errors (Negative, Missing ID).

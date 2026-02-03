@@ -1,0 +1,40 @@
+datasets:
+  inventory_snapshot:
+    file_pattern: "inventory_snapshot_*.csv"
+    required_columns:
+      - name: "date"
+        type: "string" # Keeping simple for loose validation, could be datetime
+      - name: "store_id"
+        type: "string"
+        checks: ["prefix_S"]
+      - name: "product_id"
+        type: "string"
+      - name: "quantity"
+        type: "integer"
+        checks: ["min_0"] 
+
+  restock_events:
+    file_pattern: "restock_events_*.csv"
+    required_columns:
+      - name: "event_date"
+        type: "string"
+      - name: "store_id"
+        type: "string"
+      - name: "product_id"
+        type: "string"
+      - name: "restock_qty"
+        type: "integer"
+        checks: ["min_0", "max_1000"] # Example generic rule
+
+  damaged_log:
+    file_pattern: "damaged_log_*.csv"
+    required_columns:
+      - name: "date"
+        type: "string"
+      - name: "store_id"
+        type: "string"
+      - name: "product_id"
+        type: "string"
+      - name: "damaged_qty"
+        type: "integer"
+        checks: ["min_0"]
